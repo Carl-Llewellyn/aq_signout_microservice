@@ -80,7 +80,7 @@ func handleListAQ(w http.ResponseWriter, r *http.Request) {
 	aqSearch := r.URL.Query().Get("aq")
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
-	limit := 50
+	limit := 20
 	offset := 0
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 1000 {

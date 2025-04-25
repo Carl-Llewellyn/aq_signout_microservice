@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let editing = {};
   let adding = null;
   let page = 0;
-  let pageSize = 50;
+  let pageSize = 20;
   let lastSearch = '';
   let isLastPage = false;
 
