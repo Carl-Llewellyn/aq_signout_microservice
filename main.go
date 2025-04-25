@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -11,34 +12,33 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/cors"
-	"github.com/vmihailenco/msgpack/v5"
 	"gitlab.com/UrsusArcTech/logger"
 )
 
 var db *pgxpool.Pool
 
 type AQ struct {
-	AQ                       string     `msgpack:"aq"`
-	SignoutName              *string    `msgpack:"signout_name"`
-	ProgID                   *int       `msgpack:"prog_id"`
-	MigratoryGroup           *string    `msgpack:"migratory_group"`
-	CruiseID                 *string    `msgpack:"cruise_id"`
-	Comments                 *string    `msgpack:"comments"`
-	SampleTypes              *string    `msgpack:"sample_types"`
-	Trip                     *string    `msgpack:"trip"`
-	TripLocation             *string    `msgpack:"trip_location"`
-	MglLead                  *string    `msgpack:"mgl_lead"`
-	MglSamplers              *string    `msgpack:"mgl_samplers"`
-	ChiefScientist           *string    `msgpack:"chief_scientist"`
-	Target                   *string    `msgpack:"target"`
-	CommentsCollectionMethod *string    `msgpack:"comments_collection_method"`
-	VialSeries               *string    `msgpack:"vial_series"`
-	CommentsVialSeries       *string    `msgpack:"comments_vial_series"`
-	StartDate                *time.Time `msgpack:"start_date"`
-	EndDate                  *time.Time `msgpack:"end_date"`
-	DateAdded                *time.Time `msgpack:"date_added"`
-	DateUpdated              *time.Time `msgpack:"date_updated"`
-	ChiefScientistID         *int64     `msgpack:"chief_scientist_id"`
+	AQ                       string     `json:"aq"`
+	SignoutName              *string    `json:"signout_name"`
+	ProgID                   *int       `json:"prog_id"`
+	MigratoryGroup           *string    `json:"migratory_group"`
+	CruiseID                 *string    `json:"cruise_id"`
+	Comments                 *string    `json:"comments"`
+	SampleTypes              *string    `json:"sample_types"`
+	Trip                     *string    `json:"trip"`
+	TripLocation             *string    `json:"trip_location"`
+	MglLead                  *string    `json:"mgl_lead"`
+	MglSamplers              *string    `json:"mgl_samplers"`
+	ChiefScientist           *string    `json:"chief_scientist"`
+	Target                   *string    `json:"target"`
+	CommentsCollectionMethod *string    `json:"comments_collection_method"`
+	VialSeries               *string    `json:"vial_series"`
+	CommentsVialSeries       *string    `json:"comments_vial_series"`
+	StartDate                *time.Time `json:"start_date"`
+	EndDate                  *time.Time `json:"end_date"`
+	DateAdded                *time.Time `json:"date_added"`
+	DateUpdated              *time.Time `json:"date_updated"`
+	ChiefScientistID         *int64     `json:"chief_scientist_id"`
 }
 
 func LogFatal(msg string) {
@@ -93,8 +93,7 @@ func handleListAQ(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	query := `SELECT aq, signout_name, prog_id, migratory_group, cruise_id, comments, sample_types, trip, trip_location, mgl_lead, mgl_samplers, chief_scientist, target, comments_collection_method, vial_series, comments_vial_series, start_date, end_date, date_added, date_updated, chief_scientist_id
-        FROM mgl.aq`
+	query := `SELECT aq, signout_name, prog_id, migratory_group, cruise_id, comments, sample_types, trip, trip_location, mgl_lead, mgl_samplers, chief_scientist, target, comments_collection_method, vial_series, comments_vial_series, start_date, end_date, date_added, date_updated, chief_scientist_id FROM mgl.aq`
 	args := []interface{}{}
 	where := ""
 	if aqSearch != "" {
@@ -146,8 +145,8 @@ func handleListAQ(w http.ResponseWriter, r *http.Request) {
 		aq.ChiefScientistID = nullInt64ToPtr(chiefID)
 		results = append(results, aq)
 	}
-	w.Header().Set("Content-Type", "application/x-msgpack")
-	msgpack.NewEncoder(w).Encode(results)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
 }
 
 func handleGetAQ(w http.ResponseWriter, r *http.Request) {
@@ -190,18 +189,17 @@ func handleGetAQ(w http.ResponseWriter, r *http.Request) {
 	aq.DateUpdated = nullTimeToPtr(dateUpdated)
 	aq.ChiefScientistID = nullInt64ToPtr(chiefID)
 
-	w.Header().Set("Content-Type", "application/x-msgpack")
-	msgpack.NewEncoder(w).Encode(aq)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(aq)
 }
 
 func handleCreateAQ(w http.ResponseWriter, r *http.Request) {
 	var aq AQ
-	err := msgpack.NewDecoder(r.Body).Decode(&aq)
-	if err != nil {
-		http.Error(w, "Invalid msgpack", 400)
+	if err := json.NewDecoder(r.Body).Decode(&aq); err != nil {
+		http.Error(w, "Invalid json", 400)
 		return
 	}
-	_, err = db.Exec(
+	_, err := db.Exec(
 		context.Background(),
 		`INSERT INTO mgl.aq (
 			aq, signout_name, prog_id, migratory_group, cruise_id, comments, sample_types, trip, trip_location, mgl_lead, mgl_samplers, chief_scientist, target, comments_collection_method, vial_series, comments_vial_series, start_date, end_date, date_added, date_updated, chief_scientist_id
@@ -217,16 +215,15 @@ func handleCreateAQ(w http.ResponseWriter, r *http.Request) {
 
 func handleUpdateAQ(w http.ResponseWriter, r *http.Request) {
 	var aq AQ
-	err := msgpack.NewDecoder(r.Body).Decode(&aq)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&aq); err != nil {
 		logger.LogError(err.Error())
-		http.Error(w, "Invalid msgpack", 400)
+		http.Error(w, "Invalid json", 400)
 		return
 	}
-	_, err = db.Exec(
+	_, err := db.Exec(
 		context.Background(),
-		`UPDATE mgl.aq SET signout_name=$2, prog_id=$3, migratory_group=$4, cruise_id=$5, comments=$6, sample_types=$7, trip=$8, trip_location=$9, mgl_lead=$10, mgl_samplers=$11, chief_scientist=$12, target=$13, comments_collection_method=$14, vial_series=$15, comments_vial_series=$16, start_date=$17, end_date=$18, date_updated=now(), chief_scientist_id=$19 WHERE aq=$1`,
-		aq.AQ, aq.SignoutName, aq.ProgID, aq.MigratoryGroup, aq.CruiseID, aq.Comments, aq.SampleTypes, aq.Trip, aq.TripLocation, aq.MglLead, aq.MglSamplers, aq.ChiefScientist, aq.Target, aq.CommentsCollectionMethod, aq.VialSeries, aq.CommentsVialSeries, aq.StartDate, aq.EndDate, aq.ChiefScientistID,
+		`UPDATE mgl.aq SET signout_name=$2, prog_id=$3, migratory_group=$4, cruise_id=$5, comments=$6, sample_types=$7, trip=$8, trip_location=$9, mgl_lead=$10, mgl_samplers=$11, chief_scientist=$12, target=$13, comments_collection_method=$14, vial_series=$15, comments_vial_series=$16, start_date=$17, end_date=$18, date_added=$19, date_updated=now(), chief_scientist_id=$20 WHERE aq=$1`,
+		aq.AQ, aq.SignoutName, aq.ProgID, aq.MigratoryGroup, aq.CruiseID, aq.Comments, aq.SampleTypes, aq.Trip, aq.TripLocation, aq.MglLead, aq.MglSamplers, aq.ChiefScientist, aq.Target, aq.CommentsCollectionMethod, aq.VialSeries, aq.CommentsVialSeries, aq.StartDate, aq.EndDate, aq.DateAdded, aq.ChiefScientistID,
 	)
 	if err != nil {
 		logger.LogError(err.Error())

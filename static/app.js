@@ -1,6 +1,4 @@
 document.addEventListener('DOMContentLoaded', function() {
-  const msgpack = window.msgpack;
-
   // Define your columns, in order, as used by your backend
   const columns = [
     "aq", "signout_name", "prog_id", "migratory_group", "cruise_id", "comments",
@@ -8,6 +6,54 @@ document.addEventListener('DOMContentLoaded', function() {
     "target", "comments_collection_method", "vial_series", "comments_vial_series",
     "start_date", "end_date", "date_added", "date_updated", "chief_scientist_id"
   ];
+
+  const columnTypes = {
+    aq: "string",
+    signout_name: "string",
+    prog_id: "int",
+    migratory_group: "string",
+    cruise_id: "string",
+    comments: "string",
+    sample_types: "string",
+    trip: "string",
+    trip_location: "string",
+    mgl_lead: "string",
+    mgl_samplers: "string",
+    chief_scientist: "string",
+    target: "string",
+    comments_collection_method: "string",
+    vial_series: "string",
+    comments_vial_series: "string",
+    start_date: "date",
+    end_date: "date",
+    date_added: "date",
+    date_updated: "date",
+    chief_scientist_id: "int64"
+  };
+
+  function normalizeAQRow(row) {
+    const out = {};
+    for (const key in row) {
+      let val = row[key];
+      switch (columnTypes[key]) {
+        case "int":
+        case "int64":
+          if (val === "" || val == null) {
+            out[key] = null;
+          } else {
+            const num = Number(val);
+            out[key] = isNaN(num) ? null : num;
+          }
+          break;
+        case "date":
+          out[key] = val ? new Date(val).toISOString() : null;
+          break;
+        default:
+          out[key] = val === "" ? null : val;
+      }
+    }
+    return out;
+  }
 
   let aqs = [];
   let editing = {};
@@ -27,28 +73,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  function fromDateInput(val) {
-    if (!val) return null;
-    try {
-      return new Date(val).toISOString();
-    } catch {
-      return null;
-    }
-  }
-
-  function msgpackFetch(url, opts = {}) {
+  function jsonFetch(url, opts = {}) {
     return fetch(url, opts).then(async (r) => {
       if (!r.ok) throw new Error(await r.text());
-      const buf = await r.arrayBuffer();
-      return msgpack.decode(new Uint8Array(buf));
+      return r.json();
     });
   }
 
-  function msgpackSend(url, data, method = "POST") {
+  function jsonSend(url, data, method = "POST") {
     return fetch(url, {
       method: method,
-      body: msgpack.encode(data),
-      headers: { "Content-Type": "application/x-msgpack" }
+      body: JSON.stringify(normalizeAQRow(data)),
+      headers: { "Content-Type": "application/json" }
     }).then(async (r) => {
       if (!r.ok) throw new Error(await r.text());
       return r;
@@ -76,7 +112,6 @@ document.addEventListener('DOMContentLoaded', function() {
   function renderTable() {
     const table = document.getElementById("aq-table");
     table.innerHTML = "";
-    // Header
     const thead = document.createElement("thead");
     const trh = document.createElement("tr");
     columns.forEach(col => {
@@ -84,13 +119,11 @@ document.addEventListener('DOMContentLoaded', function() {
       th.textContent = col;
       trh.appendChild(th);
     });
-    // Extra action columns
     trh.appendChild(document.createElement("th")); // Save/Discard
     trh.appendChild(document.createElement("th")); // Delete
     thead.appendChild(trh);
     table.appendChild(thead);
 
-    // Body
     const tbody = document.createElement("tbody");
     (aqs || []).forEach(row => {
       const tr = document.createElement("tr");
@@ -99,15 +132,13 @@ document.addEventListener('DOMContentLoaded', function() {
       columns.forEach(col => {
         const td = document.createElement("td");
         if (isEditing && col !== "aq") {
-          // Editable
-          const inp = document.createElement(
-            col.endsWith("_date") || col === "date_added" || col === "date_updated"
-              ? "input"
-              : "input"
-          );
+          const inp = document.createElement("input");
           if (col.endsWith("_date") || col === "date_added" || col === "date_updated") {
             inp.type = "date";
             inp.value = toDateInput(row[col]);
+          } else if (columnTypes[col] === "int" || columnTypes[col] === "int64") {
+            inp.type = "number";
+            inp.value = row[col] ?? "";
           } else {
             inp.type = "text";
             inp.value = row[col] ?? "";
@@ -115,7 +146,6 @@ document.addEventListener('DOMContentLoaded', function() {
           inp.oninput = e => { row[col] = inp.value; };
           td.appendChild(inp);
         } else {
-          // Non-editable or primary key
           td.textContent =
             (col.endsWith("_date") || col === "date_added" || col === "date_updated")
               ? toDateInput(row[col])
@@ -124,7 +154,6 @@ document.addEventListener('DOMContentLoaded', function() {
         tr.appendChild(td);
       });
 
-      // Save/Discard
       const tdSave = document.createElement("td");
       if (isEditing) {
         const saveBtn = document.createElement("button");
@@ -150,7 +179,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       tr.appendChild(tdSave);
 
-      // Delete
       const tdDel = document.createElement("td");
       const delBtn = document.createElement("button");
       delBtn.textContent = "Delete";
@@ -167,14 +195,13 @@ document.addEventListener('DOMContentLoaded', function() {
       const tr = document.createElement("tr");
       columns.forEach(col => {
         const td = document.createElement("td");
-        const inp = document.createElement(
-          col.endsWith("_date") || col === "date_added" || col === "date_updated"
-            ? "input"
-            : "input"
-        );
+        const inp = document.createElement("input");
         if (col.endsWith("_date") || col === "date_added" || col === "date_updated") {
           inp.type = "date";
           inp.value = toDateInput(adding[col]);
+        } else if (columnTypes[col] === "int" || columnTypes[col] === "int64") {
+          inp.type = "number";
+          inp.value = adding[col] ?? "";
         } else {
           inp.type = "text";
           inp.value = adding[col] ?? "";
@@ -183,7 +210,6 @@ document.addEventListener('DOMContentLoaded', function() {
         td.appendChild(inp);
         tr.appendChild(td);
       });
-      // Save/Discard buttons
       const tdSave = document.createElement("td");
       const saveBtn = document.createElement("button");
       saveBtn.textContent = "Add";
@@ -208,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const search = document.getElementById("search").value.trim();
     lastSearch = search;
     const url = `/aq/list?limit=${pageSize}&offset=${page * pageSize}` + (search ? "&aq=" + encodeURIComponent(search) : "");
-    msgpackFetch(url)
+    jsonFetch(url)
       .then((data) => {
         aqs = data;
         isLastPage = data.length < pageSize;
@@ -219,7 +245,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function onSave(row) {
     editing = {};
-    msgpackSend("/aq/update", row, "POST")
+    jsonSend("/aq/update", row, "POST")
       .then(() => fetchAqs())
       .catch(e => alert("Save failed: " + e));
   }
@@ -244,7 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function onAddSave() {
-    msgpackSend("/aq/create", adding, "POST")
+    jsonSend("/aq/create", adding, "POST")
       .then(() => {
         adding = null;
         fetchAqs();
@@ -264,7 +290,6 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchAqs();
   };
 
-  // Add pagination container if not present
   let pagDiv = document.getElementById('pagination');
   if (!pagDiv) {
     pagDiv = document.createElement('div');
@@ -273,6 +298,5 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelector('.container').appendChild(pagDiv);
   }
 
-  // Initial fetch
   fetchAqs();
 });
